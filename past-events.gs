@@ -18,6 +18,8 @@ function deleteOldTournamentRows() {
       numberOfRowsToDelete++
     }
   })
-  console.log(`Deleting ${numberOfRowsToDelete} rows`)
-  sheet.deleteRows(2, numberOfRowsToDelete)
+  if (numberOfRowsToDelete > 0) {
+    console.log(`Deleting ${numberOfRowsToDelete} rows`)
+    sheet.deleteRows(2, numberOfRowsToDelete)
+  }
 }
