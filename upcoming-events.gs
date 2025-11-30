@@ -1,18 +1,24 @@
-// TODO
-// 1. Include other states and countries
-
 /**
  * Update and/or add upcoming events in FGC Event Listing sheets.
  */
 function updateEventListing() {
-  let pageNumber = 1
+  const startTime = Date.now()
+  const sheet = SpreadsheetApp.openById(getSpreadsheetId()).getSheetByName("Events")
+  let pageNumber = Number(PropertiesService.getScriptProperties().getProperty("pageNumber"))
   let rows = []
-  // Update the sheet until there are no results left
+  // Update the sheet until there are no results left or 4 minutes have passed
   do {
-    const tournaments = getTournaments(pageNumber)
+    const tournaments = getTournaments(++pageNumber)
     rows = getRowValues(tournaments)
-    updateSheetData(rows, "Events")
-  } while (++pageNumber && rows.length > 0)
+    updateSheetData(sheet, rows)
+  } while (rows.length > 0 && Date.now() - startTime < 1000 * 60 * 4)
+  // Freeze the header row and sort the sheet by date ascending
+  sheet.setFrozenRows(1)
+  sheet.sort(1)
+  if (rows.length === 0) {
+    pageNumber = 0
+  }
+  PropertiesService.getScriptProperties().setProperty("pageNumber", pageNumber)
 }
 
 /**
@@ -22,16 +28,20 @@ function updateEventListing() {
  */
 function getTournaments(pageNumber) {
   const tournamentsByStartTimeQuery = `
-    query tournamentsByStartTime(\$page: Int = 1, \$startAt: Timestamp!) {
-      tournaments(query: {
-        page: \$page
-        perPage: 100
-        filter: {
-          addrState: "AZ"
-          afterDate: \$startAt
-          hasOnlineEvents: false
+    query tournamentsByStartTime(\$page: Int = 1, \$startAt: Timestamp!, \$endAt: Timestamp!) {
+      tournaments(
+        query: {
+          page: \$page, 
+          perPage: 100, 
+          filter: {
+            afterDate: \$startAt, 
+            beforeDate: \$endAt, 
+            published: true, 
+            publiclySearchable: true, 
+            hasOnlineEvents: false
+          }
         }
-      }) {
+      ) {
         nodes {
           id
           slug
@@ -52,9 +62,13 @@ function getTournaments(pageNumber) {
     }
   `
   // Convert the start time from a JavaScript date to a Unix timestamp
+  const startAt = Math.floor(Date.now() / 1000)
+  // Set the end time to the start time plus 90 days
+  const endAt = startAt + (60 * 60 * 24 * 90)
   const queryVariables = {
-    page: pageNumber,
-    startAt: Math.floor(new Date().getTime() / 1000),
+    "page": pageNumber,
+    "startAt": startAt,
+    "endAt": endAt
   }
   const formData = {
     "operationName": "tournamentsByStartTime",
@@ -80,7 +94,7 @@ function getTournaments(pageNumber) {
     })
     return []
   }
-  console.log(`${json.data.tournaments.nodes.length} upcoming tournaments found`)
+  console.log(`${json.data.tournaments.nodes.length} upcoming tournaments found on page ${pageNumber}`)
   return json.data.tournaments.nodes
 }
 
@@ -111,13 +125,11 @@ function getRowValues(tournaments) {
 
 /**
  * Update or insert rows on the given sheet.
+ * @param {Sheet} sheet - The sheet to update.
  * @param {Array[Array[Object]]} rows - An array of row and column values.
- * @param {String} sheetName - The name of the sheet to update.
  */
-function updateSheetData(rows, sheetName) {
-  const spreadsheet = SpreadsheetApp.openById(getSpreadsheetId())
-  const sheet = spreadsheet.getSheetByName(sheetName)
-  console.log(`Updating/inserting ${rows.length} rows in sheet "${sheetName}"`)
+function updateSheetData(sheet, rows) {
+  console.log(`Updating/inserting ${rows.length} rows in sheet`)
   rows.forEach(columns => {
     const existingRow = sheet.createTextFinder(columns[2]).findNext()
     // If a row for this tournament has already been created, update that row, else insert a new row
@@ -128,7 +140,4 @@ function updateSheetData(rows, sheetName) {
       sheet.getRange(2, 1, 1, columns.length).setValues([columns])
     }
   })
-  // Freeze the header row and sort the sheet by date ascending
-  sheet.setFrozenRows(1)
-  sheet.sort(1)
 }
