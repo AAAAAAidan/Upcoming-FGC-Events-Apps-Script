@@ -63,8 +63,8 @@ function getTournaments(pageNumber) {
   `
   // Convert the start time from a JavaScript date to a Unix timestamp
   const startAt = Math.floor(Date.now() / 1000)
-  // Set the end time to the start time plus 60 days
-  const endAt = startAt + (60 * 60 * 24 * 60)
+  // Set the end time to the start time plus 50 days
+  const endAt = startAt + (60 * 60 * 24 * 50)
   const queryVariables = {
     "page": pageNumber,
     "startAt": startAt,
