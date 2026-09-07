@@ -4,29 +4,48 @@
 function updateEventListing() {
   const startTime = Date.now()
   const sheet = SpreadsheetApp.openById(getSpreadsheetId()).getSheetByName("Events")
-  let pageNumber = Number(PropertiesService.getScriptProperties().getProperty("pageNumber"))
+
+  //////////////
+  // start.gg //
+  //////////////
+  let startGgPageNumber = Number(PropertiesService.getScriptProperties().getProperty("startGgPageNumber"))
   let rows = []
   // Update the sheet until there are no results left or 4 minutes have passed
   do {
-    const tournaments = getTournaments(++pageNumber)
-    rows = getRowValues(tournaments)
+    const startGgTournaments = getStartGgTournaments(++startGgPageNumber)
+    rows = getRowValues(startGgTournaments)
     updateSheetData(sheet, rows)
   } while (rows.length > 0 && Date.now() - startTime < 1000 * 60 * 4)
+  if (rows.length === 0) {
+    startGgPageNumber = 0
+  }
+  PropertiesService.getScriptProperties().setProperty("startGgPageNumber", startGgPageNumber)
+
+  //////////////
+  // parry.gg //
+  //////////////
+  // let parryGgPageCursor = Number(PropertiesService.getScriptProperties().getProperty("parryGgPageCursor"))
+  // let parryGgRows = []
+  // // Update the sheet until there are no results left or 1 minute has passed
+  // do {
+  //   const parryGgTournaments = getParryGgTournaments(parryGgPageCursor)
+  //   parryGgPageCursor = parryGgTournaments.next_cursor
+  //   parryGgRows = getRowValues(parryGgTournaments)
+  //   updateSheetData(sheet, parryGgRows)
+  // } while (parryGgRows.length > 0 && Date.now() - startTime < 1000 * 60 * 1)
+  // PropertiesService.getScriptProperties().setProperty("parryGgPageCursor", parryGgPageCursor)
+
   // Freeze the header row and sort the sheet by date ascending
   sheet.setFrozenRows(1)
   sheet.sort(1)
-  if (rows.length === 0) {
-    pageNumber = 0
-  }
-  PropertiesService.getScriptProperties().setProperty("pageNumber", pageNumber)
 }
 
 /**
- * Get a 10 result page of upcoming tournaments.
+ * Get a 10 result page of upcoming tournaments from start.gg.
  * @param {Number} pageNumber - A page number.
  * @return {Array[Object]} An array of tournaments. Refer to start.gg's GraphQL schema.
  */
-function getTournaments(pageNumber) {
+function getStartGgTournaments(pageNumber) {
   const tournamentsByStartTimeQuery = `
     query tournamentsByStartTime(\$page: Int = 1, \$startAt: Timestamp!, \$endAt: Timestamp!) {
       tournaments(
@@ -96,6 +115,43 @@ function getTournaments(pageNumber) {
   }
   console.log(`${json.data.tournaments.nodes.length} upcoming tournaments found on page ${pageNumber}`)
   return json.data.tournaments.nodes
+}
+
+/**
+ * This is a work in progress.
+ * Get a 10 result page of upcoming tournaments from parry.gg.
+ * @param {String} pageCursor - A page cursor.
+ * @return {Array[Object]} An array of tournaments.
+ */
+function getParryGgTournaments(pageCursor) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty("parryGgApiKey")
+  const headers = {
+    "Content-Type": "application/json",
+    "X-API-KEY": apiKey,
+  }
+  const formData = {
+    "filter": {
+      "event_updated_since": null
+    },
+    "pagination_request": {
+      "page_size": 100,
+      "cursor": pageCursor,
+    },
+    "sort_order": 1,
+  }
+  const options = {
+    "method": "POST",
+    "headers": headers,
+    "payload": JSON.stringify(formData),
+  }
+  const url = "https://grpcweb.parry.gg/parrygg.services.TournamentService/GetTournaments"
+  const response = UrlFetchApp.fetch(url, options)
+  const json = JSON.parse(response.getContentText())
+  console.log(`${json.tournaments.length} upcoming tournaments found on page ${pageCursor}`)
+  // TODO: filter the JSON values we need
+  const filteredJson = json.tournaments
+  console.log(filteredJson)
+  return filteredJson
 }
 
 /**
