@@ -12,5 +12,7 @@ function isDevelopmentModeEnabled() {
  * @return {String} A spreadsheet ID string.
  */
 function getSpreadsheetId() {
-  return isDevelopmentModeEnabled() ? "1MZfWoS2bUUpnvHfZDCPUc0DnscJSIac7BVQNvSBIEMg" : "1AIMZepfkEIUmTYFgFY4t4wTQSXrP_YvETAB-WAwyCyM"
+  return isDevelopmentModeEnabled() === true
+    ? "1MZfWoS2bUUpnvHfZDCPUc0DnscJSIac7BVQNvSBIEMg" // development
+    : "1AIMZepfkEIUmTYFgFY4t4wTQSXrP_YvETAB-WAwyCyM" // production
 }
